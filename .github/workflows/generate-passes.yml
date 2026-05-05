@@ -1,0 +1,42 @@
+name: Generate PKPass Files
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pillow
+
+      - name: Setup certificates
+        run: |
+          echo "${{ secrets.PASS_CERT }}" | base64 -d > pass-cert-only.pem
+          echo "${{ secrets.PASS_KEY }}" | base64 -d > mysargal-pass.key
+          echo "${{ secrets.WWDR_CERT }}" | base64 -d > AppleWWDRCAG4.pem
+
+      - name: Generate passes
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python3 generate_passes_v5.py
+
+      - name: Push passes
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add passes/ || true
+          git diff --staged --quiet || git commit -m "Auto passes $(date '+%Y-%m-%d %H:%M')"
+          git push
